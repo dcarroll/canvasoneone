@@ -35,6 +35,27 @@ if (!chatterTalk) {
     function onClickHandler() {
     }
 
+    chatterTalk.publishToRecord = function(sr, options, callback) {
+    	var url = sr.context.links.chatterFeedsUrl + "/record/" + options.recordId + "/feed-items";
+    	var body = {body : {messageSegments : [{type: "Text", text: options.message}]}};
+    	
+        $$.client.ajax(url,
+                {client : sr.client,
+                 method: 'POST',
+                 contentType: "application/json",
+                 data: JSON.stringify(body),
+                 success : function(data) {
+                     if ($$.isFunction(callback)) {
+                         callback(data);
+                     }
+                 }
+            });
+    };
+    
+    chatterTalk.init2 = function(cb) {
+    	cb.go = chatterTalk.publishToRecord;
+    };
+    
     chatterTalk.init =  function(sr, button, input, callback) {
         $$.byId(button).onclick=function() {
             var value = $$.byId(input).value;

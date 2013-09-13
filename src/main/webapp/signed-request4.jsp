@@ -98,8 +98,10 @@ POSSIBILITY OF SUCH DAMAGE.
             //nearbyDeliveries = sr.context.environment.parameters.nearByDeliveries;
             var nbdMap = {};
             _.each(sr.context.environment.parameters.nearByDeliveries, function(del) {
-            	if (typeof nbdMap[del.Account__r.Name] === 'undefined') {
-            		nearbyDeliveries.push(del);
+            	if (typeof nbdMap[del.Account__r] !== 'undefined') {
+	            	if (typeof nbdMap[del.Account__r.Name] === 'undefined') {
+    	        		nearbyDeliveries.push(del);
+        	    	}
             	}
             });
             
@@ -198,12 +200,14 @@ POSSIBILITY OF SUCH DAMAGE.
 
     </head>
     <body style="font-size: 16px">
+        <img alt="" class="pull-left" src="images/SAP-Logo.png" height="40px" style="padding-bottom: 5px; margin-top: -10px; margin-left: -10px;">
+        <img alt="" class="pull-right" src="images/Sysco_Logo.png" height="40px" style="padding-bottom: 5px; margin-top: -10px; margin-left: -10px;">
         <div class="container" style="width: 308px; margin-left: -25px; margin-right: -25px;">
             <div class="col-12">
                 <div class="well well-small">
                     <div id="headers" class="row">
                         <div>
-                            <h4 id="fullname"><strong>SAP Order Now</strong></h4>
+                            <h4 id="fullname"><strong>Order Now</strong></h4>
                             <br/>
                         </div>
                     </div>

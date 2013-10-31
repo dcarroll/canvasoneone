@@ -36,6 +36,7 @@ POSSIBILITY OF SUCH DAMAGE.
     }
     String yourConsumerSecret=System.getenv("CANVAS_CONSUMER_SECRET");
     String signedRequestJson = SignedRequest.verifyAndDecodeAsJson(signedRequest[0], yourConsumerSecret);
+    
 %>
 <!DOCTYPE html>
 <html>
@@ -58,150 +59,14 @@ POSSIBILITY OF SUCH DAMAGE.
         <script type="text/javascript" src="scripts/chatter-talk.js"></script>
 
         <script>
-        if (self === top) {
-            // Not in Iframe
-            alert("This canvas app must be included within an iframe");
-        }
-
-        var sr, account, lastDelivery, activeDelivery, driverId;
-        var deliveryUrl, queryUrl, quickActionUrl;
-        var deliveries = [];
-		var nearbyDeliveries = [];
-		
-        publishToRecordFeed = function(sr, options, callback) {
-        	var url = sr.context.links.chatterFeedsUrl + "/record/" + options.recordId + "/feed-items";
-        	var body = {body : {messageSegments : [{type: "Text", text: options.message}]}};
-        	
-            Sfdc.canvas.client.ajax(url,
-                    {client : sr.client,
-                     method: 'POST',
-                     contentType: "application/json",
-                     data: JSON.stringify(body),
-                     success : function(data) {
-                         callback(data);
-                     }
-                });
-        };
-
-        Sfdc.canvas(function() {
-            sr = JSON.parse('<%=signedRequestJson%>');
-            console.log(JSON.stringify(sr, null, 4));
-            deliveryUrl =sr.context.links.restUrl + "sobjects/Delivery__c";
-            queryUrl = sr.context.links.restUrl + "query?q=";
-            quickActionUrl = sr.context.links.restUrl + "sobjects/";
-            lastDelivery = sr.context.environment.parameters.lastDelivery;
-            driver = sr.context.environment.parameters.driver;
-            $("#mydriver").html(driver.Name);
-            activeDelivery = lastDelivery;
-            account = lastDelivery.Account__r;
-            deliveries.push(lastDelivery);
-            //nearbyDeliveries = sr.context.environment.parameters.nearByDeliveries;
-            var nbdMap = {};
-            _.each(sr.context.environment.parameters.nearByDeliveries, function(del) {
-            	if (typeof nbdMap[del.Account__r] !== 'undefined') {
-	            	if (typeof nbdMap[del.Account__r.Name] === 'undefined') {
-    	        		nearbyDeliveries.push(del);
-        	    	}
-            	}
-            });
-            
-            $("#acctName").html(account.Name);
-            $("#acctStreet").html(account.ShippingStreet);
-            $("#acctCityStateZip").html(account.ShippingCity + ", " + account.ShippingState + " " + account.ShippingPostalCode);
-            $("#acctPhone").html(account.Phone);
-            
-           	_.each(nearbyDeliveries, function(del) {
-           		var li = document.createElement("li");
-	            	li.className = "list-group-item";
-       	    	$(li).bind("click", function() {
-           			changeAccount(del.Account__r.Name);
-           		});
-            	$(li).html(del.Account__r.Name);
-   	        	var span = document.createElement("span");
-       	    	span.className = "badge";
-           		$(span).html("0.1");
-           		//$(li).append(span);
-           	
-            	$("#nearbyList").append(li);
-   	        });    
-
-        }); 
-        
-        var formatDate = function(date) {
-        	var d = new Date();
-        	var offset = d.getTimezoneOffset() / 60;
-        	if (offset < 10) offset = "0" + offset;
-        	var formatted = date.getFullYear() + "-" + 
-            ("0" + (date.getMonth() + 1)).slice(-2) + "-" + 
-            ("0" + date.getDate()).slice(-2) + "T" + date.getHours() + ":" + 
-            date.getMinutes() + ":" + date.getSeconds() + "-" + offset + "00"; 
-            return formatted;
-        }
-        
-        var addMinutes = function(date, minutes) {
-            return new Date(date.getTime() + minutes*60000);
-        }
-        
-        var getDelivery = function(deliveryId) {
-        	var philCalvinId = "005R0000000HfWf";
-
-			var quickAction = {};
-			quickAction.parentId = activeDelivery.Account__c;
-			quickAction.record = {};
-					
-			quickAction.record.OwnerId = driver[0].Id;
-			quickAction.record.Scheduled_Window__c = "55";
-			var d = addMinutes(new Date(), 35);
-			quickAction.record.Scheduled_Time__c = formatDate(d);
-			quickAction.record.Phone__c = activeDelivery.Phone__c;
-			//quickAction.record.Status__c = "Scheduled";
-			console.log(JSON.stringify(activeDelivery, null, 4));
-			//quickAction.record.Location__Latitude__s = activeDelivery.Location__Latitude__s;
-			//quickAction.record.Location__Longitude__s = activeDelivery.Location__Longitude__s;
-			d.setSeconds(0);
-			$("#scheduledTime").html(d.toLocaleTimeString());
-			$("#acctConfirm").html(activeDelivery.Account__c.Name);
-			createDelivery(quickAction, quickActionUrl + "Account/quickActions/New_Delivery");
-			//https://na1.salesforce.com/services/data/v28.0/sobjects/Account/quickActions/CreateContact
-        };
-          
-        var createDelivery = function( quickAction, uri ) {
-        	console.log("Calling POST to create new delivery item.\n" + JSON.stringify(quickAction));;
-        	Sfdc.canvas.client.ajax(uri,
-        			{
-        				client : sr.client,		
-        				method: 'POST',
-        				contentType: "application/json",
-        				data: JSON.stringify(quickAction),
-        				success : function(data) {
-        					console.log("Got response for delivery item POST");
-        					if (201 === data.status) {
-        						_.each(orders, function(order) {
-        							$("#confirmProdList").append("<li class='list-group-item'>" + order.name + " - " + order.quantSelected + " units</li>");
-        						});
-        						$("#mydriver").html(driver[0].Name);
-        						$("#acctConfirm").html(activeDelivery.Account__r.Name);
-        						$('#modalConfirm').modal('show')
-        					} else {
-               					console.log("Create delivery error: \n" + JSON.stringify(data.payload, null, 4));
-               				}
-        				},
-        				error: function(data) {
-        					console.log("Create delivery error: \n" + JSON.stringify(data.payload, null, 4));
-        				}
-    				}
-        	)
-        };
-
-        // Andrew's 2nd query
-        //        nearbyDeliverySOQL        = 'SELECT OwnerId, Name, Scheduled_Time__c, Owner.Name FROM Delivery__c WHERE OwnerId != :userId AND Status__c != \'Delivered\' AND Status__c != \'Exception\' AND DAY_ONLY(convertTimezone(Scheduled_Time__c)) = :today ORDER BY DISTANCE(Location__c,GEOLOCATION(' + lat + ',' + lon + '),\'mi\') ASC LIMIT 1';
-
         </script>
 
     </head>
     <body style="font-size: 16px">
-        <img alt="" class="pull-left" src="images/SAP-Logo.png" height="40px" style="padding-bottom: 5px; margin-top: -10px; margin-left: -10px;">
+        <img id="header-logo" alt="" class="pull-left" src="" style="max-height: 30px; padding-bottom: 2px; margin-left: -8px; margin-top: -10px;">
+        <!-- 
         <img alt="" class="pull-right" src="images/Sysco_Logo.png" height="40px" style="padding-bottom: 5px; margin-top: -10px; margin-left: -10px;">
+        -->
         <div class="container" style="width: 308px; margin-left: -25px; margin-right: -25px;">
             <div class="col-12">
                 <div class="well well-small">
@@ -447,6 +312,157 @@ POSSIBILITY OF SUCH DAMAGE.
     	</div><!-- /.modal -->  
 	
         <script>
+        if (self === top) {
+            // Not in Iframe
+            alert("This canvas app must be included within an iframe");
+        }
+
+        var sr, account, lastDelivery, activeDelivery, driverId;
+        var deliveryUrl, queryUrl, quickActionUrl;
+        var deliveries = [];
+		var nearbyDeliveries = [];
+		var nsPrefix = "";
+		var logo;
+		
+        publishToRecordFeed = function(sr, options, callback) {
+        	var url = sr.context.links.chatterFeedsUrl + "/record/" + options.recordId + "/feed-items";
+        	var body = {body : {messageSegments : [{type: "Text", text: options.message}]}};
+        	
+            Sfdc.canvas.client.ajax(url,
+                    {client : sr.client,
+                     method: 'POST',
+                     contentType: "application/json",
+                     data: JSON.stringify(body),
+                     success : function(data) {
+                         callback(data);
+                     }
+                });
+        };
+
+        
+        
+        Sfdc.canvas(function() {
+            sr = JSON.parse('<%=signedRequestJson%>');
+            if (sr.context.organization.namespacePrefix == "drd") {
+            	nsPrefix = "drd__";
+            }
+            $("#header-logo").attr("src", sr.client.instanceUrl + sr.context.environment.parameters.logo);
+            
+            console.log(JSON.stringify(sr, null, 4));
+            deliveryUrl =sr.context.links.restUrl + "sobjects/" + nsPrefix + "Delivery__c";
+            queryUrl = sr.context.links.restUrl + "query?q=";
+            quickActionUrl = sr.context.links.restUrl + "sobjects/";
+            lastDelivery = sr.context.environment.parameters.lastDelivery;
+            driver = sr.context.environment.parameters.driver;
+            $("#mydriver").html(driver.Name);
+            activeDelivery = lastDelivery;
+            account = lastDelivery[nsPrefix + "Account__r"];
+            deliveries.push(lastDelivery);
+            nearbyDeliveries = sr.context.environment.parameters.nearByDeliveries;
+            var nbdMap = {};
+            var nbDel = [];
+            _.each(nearbyDeliveries, function(del) {
+            	if (typeof nbdMap[del[nsPrefix + "Account__r"].Name] === 'undefined') {
+            		nbdMap[del[nsPrefix + "Account__r"].Name] = del;
+   	        		nbDel.push(del);
+            	}
+            });
+            
+            nearbyDeliveries = nbDel;
+      
+
+            $("#acctName").html(account.Name);
+            $("#acctStreet").html(activeDelivery[nsPrefix + "Street__c"]);
+            $("#acctCityStateZip").html(activeDelivery[nsPrefix + 'City__c'] + ", " + activeDelivery[nsPrefix + "State__c"] + " " + activeDelivery[nsPrefix + "Postal_Code__c"]);
+            $("#acctPhone").html(activeDelivery[nsPrefix + "Phone__c"]);
+            
+           	_.each(nearbyDeliveries, function(del) {
+           		var li = document.createElement("li");
+	            	li.className = "list-group-item";
+       	    	$(li).bind("click", function() {
+           			changeAccount(del[nsPrefix + "Account__r"].Name);
+           		});
+            	$(li).html(del[nsPrefix + "Account__r"].Name);
+   	        	var span = document.createElement("span");
+       	    	span.className = "badge";
+           		$(span).html("0.1");
+           		//$(li).append(span);
+           	
+            	$("#nearbyList").append(li);
+   	        });    
+
+           	window.setTimeout(changeAccount, 200);
+        }); 
+        
+        var formatDate = function(date) {
+        	var d = new Date();
+        	var offset = d.getTimezoneOffset() / 60;
+        	if (offset < 10) offset = "0" + offset;
+        	var formatted = date.getFullYear() + "-" + 
+            ("0" + (date.getMonth() + 1)).slice(-2) + "-" + 
+            ("0" + date.getDate()).slice(-2) + "T" + date.getHours() + ":" + 
+            date.getMinutes() + ":" + date.getSeconds() + "-" + offset + "00"; 
+            return formatted;
+        }
+        
+        var addMinutes = function(date, minutes) {
+            return new Date(date.getTime() + minutes*60000);
+        }
+        
+        var getDelivery = function(deliveryId) {
+        	var philCalvinId = "005R0000000HfWf";
+
+			var quickAction = {};
+			quickAction.parentId = activeDelivery[nsPrefix + "Account__c"];
+			quickAction.record = {};
+					
+			quickAction.record.OwnerId = driver[0].Id;
+			quickAction.record[nsPrefix + "Scheduled_Window__c"] = "55";
+
+			var d = addMinutes(new Date(), 35);
+			quickAction.record[nsPrefix + "Scheduled_Time__c"] = formatDate(d);
+			quickAction.record[nsPrefix + "Phone__c"] = activeDelivery[nsPrefix + "Phone__c"];
+			console.log(JSON.stringify(activeDelivery, null, 4));
+			//quickAction.record.Location__Latitude__s = activeDelivery.Location__Latitude__s;
+			//quickAction.record.Location__Longitude__s = activeDelivery.Location__Longitude__s;
+			d.setSeconds(0);
+			$("#scheduledTime").html(d.toLocaleTimeString());
+			$("#acctConfirm").html(activeDelivery[nsPrefix + "Account__c"].Name);
+			createDelivery(quickAction, quickActionUrl + "Account/quickActions/" + nsPrefix + "New_Delivery");
+			//https://na1.salesforce.com/services/data/v28.0/sobjects/Account/quickActions/CreateContact
+        };
+          
+        var createDelivery = function( quickAction, uri ) {
+        	console.log("Calling POST to create new delivery item.\n" + JSON.stringify(quickAction));;
+        	Sfdc.canvas.client.ajax(uri,
+        			{
+        				client : sr.client,		
+        				method: 'POST',
+        				contentType: "application/json",
+        				data: JSON.stringify(quickAction),
+        				success : function(data) {
+        					console.log("Got response for delivery item POST");
+        					if (201 === data.status) {
+        						_.each(orders, function(order) {
+        							$("#confirmProdList").append("<li class='list-group-item'>" + order.name + " - " + order.quantSelected + " units</li>");
+        						});
+        						$("#mydriver").html(driver[0].Name);
+        						$("#acctConfirm").html(activeDelivery[nsPrefix + "Account__r"].Name);
+        						$('#modalConfirm').modal('show')
+        					} else {
+               					console.log("Create delivery error: \n" + JSON.stringify(data.payload, null, 4));
+               				}
+        				},
+        				error: function(data) {
+        					console.log("Create delivery error: \n" + JSON.stringify(data.payload, null, 4));
+        				}
+    				}
+        	)
+        };
+
+        // Andrew's 2nd query
+        //        nearbyDeliverySOQL        = 'SELECT OwnerId, Name, Scheduled_Time__c, Owner.Name FROM Delivery__c WHERE OwnerId != :userId AND Status__c != \'Delivered\' AND Status__c != \'Exception\' AND DAY_ONLY(convertTimezone(Scheduled_Time__c)) = :today ORDER BY DISTANCE(Location__c,GEOLOCATION(' + lat + ',' + lon + '),\'mi\') ASC LIMIT 1';
+
             var selectedProduct = 'Bacon Bits';
 			var deliveryId = 'a00R0000000iMCj';
 			
@@ -490,19 +506,22 @@ POSSIBILITY OF SUCH DAMAGE.
             };
 
             var findAccount = function(arr, name) {
+            	var foundAccount = arr[0];
             	_.each(arr, function(el) {
-            		if (el.Account__r.Name === name) {
-            			return el;
+            		if (el[nsPrefix + "Account__r"].Name === name) {
+            			foundAccount = el;
             		}
             	})
+            	return foundAccount;
             };
             
             var changeAccount = function(acctName) {
-            	var delivery = findAccount(deliveries, acctName);
+            	var delivery = findAccount(nearbyDeliveries, acctName);
+            	var account = delivery
                 $("#acctName").html(acctName);
-                $("#acctStreet").html(delivery.Street__c);
-                $("#acctCityStateZip").html(account.City__c + ", " + account.State__c + " " + account.Postal_Code__c);
-                $("#acctPhone").html(account.Phone__c);
+                $("#acctStreet").html(delivery[nsPrefix + "Street__c"]);
+                $("#acctCityStateZip").html(account[nsPrefix + 'City__c'] + ", " + delivery[nsPrefix + "State__c"] + " " + delivery[nsPrefix + "Postal_Code__c"]);
+                $("#acctPhone").html(account[nsPrefix + "Phone__c"]);
                 $('#myModal').modal('hide')     
                 activeDelivery = delivery;
             };
